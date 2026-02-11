@@ -1,0 +1,9 @@
+{
+  "output": "Görselde bir matematik sorusu bulunmuyor. Görselde \"LumoAI\" uygulamasına ait bir arayüz gösteriliyor. Arayüzde \"Hey Lumo!\" özelliğini etkinleştirme ve \"Lumo'yu Etkinleştir\" butonları yer alıyor.",
+  "usage": {
+    "prompt_tokens": 1820,
+    "completion_tokens": 60,
+    "total_tokens": 1880,
+    "cost": 0.000206
+  }
+}

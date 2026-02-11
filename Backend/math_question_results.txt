@@ -1,0 +1,95 @@
+
+==================================================
+METHOD 1 (image_url field):
+Elbette, görseldeki soruyu adım adım çözebilirim. İşte çözüm:
+
+**Soru:**
+
+Bir sınıftaki öğrencilerin %40'ı erkektir. Erkek öğrencilerin %25'i gözlüklüdür. Sınıftaki tüm öğrencilerin yüzde kaçı gözlüklü erkektir?
+
+**Çözüm:**
+
+1.  **Adım: Erkek Öğrenci Oranını Bulma**
+
+*   Sınıfın tamamı %100 olarak kabul edilir.
+*   Erkek öğrencilerin oranı %40'tır.
+
+2.  **Adım: Gözlüklü Erkek Öğrenci Oranını Bulma**
+
+*   Erkek öğrencilerin %25'i gözlüklüdür.
+*   Bu, tüm sınıfın %40'ının %25'i anlamına gelir.
+*   Hesaplama: (%25 / 100) \* %40 = %10
+
+3.  **Adım: Sonucu Yorumlama**
+
+*   Sınıftaki tüm öğrencilerin %10'u gözlüklü erkektir.
+
+**Cevap:**
+
+Sınıftaki öğrencilerin %10'u gözlüklü erkektir.
+
+METHOD 2 (images array):
+Elbette, görseldeki soruyu adım adım analiz edelim ve çözelim:
+
+**Soru:**
+
+Bir sınıftaki öğrencilerin %60'ı erkektir. Erkeklerin %40'ı ve kızların %25'i gözlüklüdür. Sınıftaki öğrencilerin yüzde kaçı gözlüksüzdür?
+
+**Çözüm:**
+
+1.  **Sınıfın Toplam Öğrenci Sayısını Belirleme:**
+    *   Sınıfın toplam öğrenci sayısına 100x diyelim. Bu, yüzdelerle çalışmayı kolaylaştırır.
+
+2.  **Erkek ve Kız Öğrenci Sayılarını Bulma:**
+    *   Erkek öğrenci sayısı: 100x * (60/100) = 60x
+    *   Kız öğrenci sayısı: 100x - 60x = 40x
+
+3.  **Gözlüklü Erkek ve Kız Öğrenci Sayılarını Bulma:**
+    *   Gözlüklü erkek öğrenci sayısı: 60x * (40/100) = 24x
+    *   Gözlüklü kız öğrenci sayısı: 40x * (25/100) = 10x
+
+4.  **Toplam Gözlüklü Öğrenci Sayısını Bulma:**
+    *   Toplam gözlüklü öğrenci sayısı: 24x + 10x = 34x
+
+5.  **Gözlüksüz Öğrenci Sayısını Bulma:**
+    *   Toplam öğrenci sayısı - Gözlüklü öğrenci sayısı = Gözlüksüz öğrenci sayısı
+    *   100x - 34x = 66x
+
+6.  **Gözlüksüz Öğrenci Yüzdesini Bulma:**
+    *   (Gözlüksüz öğrenci sayısı / Toplam öğrenci sayısı) * 100
+    *   (66x / 100x) * 100 = %66
+
+**Cevap:** Sınıftaki öğrencilerin %66'sı gözlüksüzdür.
+
+METHOD 3 (input_images):
+Tamamdır, görseldeki soruyu adım adım analiz edip çözelim:
+
+**Soru:**
+
+Bir sınıftaki öğrencilerin %60'ı erkektir. Erkek öğrencilerin %40'ı gözlüklü, kız öğrencilerin ise %25'i gözlüklüdür. Sınıftaki öğrencilerin yüzde kaçı gözlüklüdür?
+
+**Çözüm:**
+
+1.  **Sınıfın Genelini Belirleyelim:**
+
+    *   Sınıf mevcudunu 100 kişi olarak varsayalım. Bu, yüzdelerle işlem yapmayı kolaylaştırır.
+
+2.  **Erkek ve Kız Öğrenci Sayılarını Bulalım:**
+
+    *   Erkek öğrenci sayısı: 100 * %60 = 60 kişi
+    *   Kız öğrenci sayısı: 100 - 60 = 40 kişi
+
+3.  **Gözlüklü Erkek ve Kız Öğrenci Sayılarını Bulalım:**
+
+    *   Gözlüklü erkek öğrenci sayısı: 60 * %40 = 24 kişi
+    *   Gözlüklü kız öğrenci sayısı: 40 * %25 = 10 kişi
+
+4.  **Toplam Gözlüklü Öğrenci Sayısını Bulalım:**
+
+    *   Toplam gözlüklü öğrenci sayısı: 24 + 10 = 34 kişi
+
+5.  **Gözlüklü Öğrencilerin Yüzdesini Hesaplayalım:**
+
+    *   Gözlüklü öğrencilerin yüzdesi: (34 / 100) * 100 = %34
+
+**Cevap:** Sınıftaki öğrencilerin %34'ü gözlüklüdür.

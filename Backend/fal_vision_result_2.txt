@@ -1,0 +1,1 @@
+Error (422): {"detail":[{"loc":["body","image_urls"],"msg":"field required","type":"value_error.missing"}]}

@@ -1,0 +1,15 @@
+TEST 1 (prompt + image_url field):
+Status: 200
+{"output":"Görsel büyük ihtimalle bir ağaç veya ağaçlık alan içeriyor.","reasoning":null,"partial":false,"error":null,"usage":{"prompt_tokens":18,"completion_tokens":18,"total_tokens":36,"cost":9e-06}}
+
+TEST 2 (prompt + images array):
+Status: 200
+{"output":"Resimde bir kadın ve bir erkek, muhtemelen açık havada bir etkinlik sırasında cep telefonlarıyla fotoğraf çekiyorlar.\n","reasoning":null,"partial":false,"error":null,"usage":{"prompt_tokens":18,"completion_tokens":27,"total_tokens":45,"cost":1.26e-05}}
+
+TEST 3 (inline base64 in prompt):
+Status: 200
+{"output":"Üzgünüm, istediğiniz kadar ayrıntılı olmama izin vermeyen teknik sınırlamalar nedeniyle bir görseli analiz edemiyorum.","reasoning":null,"partial":false,"error":null,"usage":{"prompt_tokens":86,"completion_tokens":30,"total_tokens":116,"cost":2.06e-05}}
+
+TEST 4 (prompt + input_images):
+Status: 200
+{"output":"Görselde kırmızı bir arka planda büyük, beyaz bir X harfi var.\n","reasoning":null,"partial":false,"error":null,"usage":{"prompt_tokens":18,"completion_tokens":19,"total_tokens":37,"cost":9.4e-06}}

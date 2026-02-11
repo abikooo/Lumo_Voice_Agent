@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <title>LumoAI - Mikrofon İzni</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(180deg, #FFF8ED, #FDECC8);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            padding: 48px;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #2D2D2D;
+            margin-bottom: 8px;
+        }
+
+        .logo-ai {
+            color: #C4A265;
+        }
+
+        p {
+            color: #666;
+            margin: 16px 0;
+            line-height: 1.6;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 36px;
+            background: linear-gradient(135deg, #C4A265, #D4B87A);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(196, 162, 101, 0.3);
+        }
+
+        .status {
+            margin-top: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .status.success {
+            color: #4CAF50;
+        }
+
+        .status.error {
+            color: #F44336;
+        }
+
+        .note {
+            font-size: 12px;
+            color: #999;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>Lumo<span class="logo-ai">AI</span></h1>
+        <p>Sesli soru sorabilmek için mikrofon iznine ihtiyacımız var. Aşağıdaki butona tıklayarak izin verin.</p>
+        <button class="btn" id="grantBtn">🎤 Mikrofon İzni Ver</button>
+        <div class="status" id="status"></div>
+        <p class="note">Bu izni bir kere vermeniz yeterli. Sonrasında popup'tan soru sorabilirsiniz.</p>
+    </div>
+
+    <script>
+        const btn = document.getElementById("grantBtn");
+        const status = document.getElementById("status");
+
+        btn.addEventListener("click", async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // İzin verildi — stream'i hemen kapat
+                stream.getTracks().forEach(t => t.stop());
+                status.className = "status success";
+                status.textContent = "✅ Mikrofon izni verildi! Bu sekmeyi kapatabilirsiniz.";
+                btn.textContent = "✅ İzin Verildi";
+                btn.style.background = "#4CAF50";
+                btn.disabled = true;
+            } catch (err) {
+                status.className = "status error";
+                if (err.name === "NotAllowedError") {
+                    status.textContent = "❌ İzin reddedildi. Brave'in adres çubuğundaki 🔒 ikonuna tıklayıp mikrofonu açın.";
+                } else {
+                    status.textContent = "❌ Hata: " + err.message;
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
