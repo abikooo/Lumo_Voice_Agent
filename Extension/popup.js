@@ -18,20 +18,104 @@ document.addEventListener("DOMContentLoaded", () => {
     statusIndicator = document.getElementById("statusIndicator");
     statusText = document.getElementById("statusText");
 
-    chrome.runtime.sendMessage({ target: "background", type: "get-status" }, (response) => {
-        if (response && response.isCapturing) {
-            setActivated(true);
-            updateStatus("listening", "Videoyu dinliyor...");
+    // Login Elements
+    const loginSection = document.getElementById("login-section");
+    const mainSection = document.getElementById("main-section");
+    const emailInput = document.getElementById("emailInput");
+    const passwordInput = document.getElementById("passwordInput");
+    const loginBtn = document.getElementById("loginBtn");
+    const loginError = document.getElementById("loginError");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    // Check Login Status
+    checkLogin();
+
+    function checkLogin() {
+        chrome.storage.local.get(["token"], (result) => {
+            if (result.token) {
+                showMain();
+                initMain();
+            } else {
+                showLogin();
+            }
+        });
+    }
+
+    function showLogin() {
+        loginSection.style.display = "block";
+        mainSection.style.display = "none";
+    }
+
+    function showMain() {
+        loginSection.style.display = "none";
+        mainSection.style.display = "block";
+    }
+
+    loginBtn.addEventListener("click", async () => {
+        const email = emailInput.value;
+        const password = passwordInput.value;
+        loginError.textContent = "";
+
+        if (!email || !password) {
+            loginError.textContent = "Please enter email and password";
+            return;
+        }
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('username', email); // backend expects 'username' for email
+            formData.append('password', password);
+
+            const response = await fetch(`${BACKEND_URL}/api/auth/token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || "Login failed");
+            }
+
+            const data = await response.json();
+            chrome.storage.local.set({ token: data.access_token }, () => {
+                showMain();
+                initMain();
+            });
+
+        } catch (error) {
+            loginError.textContent = error.message;
         }
     });
 
-    // Hey Lumo toggle durumunu storage'dan yükle
-    chrome.storage.local.get("heyLumoEnabled", (data) => {
-        if (data.heyLumoEnabled) {
-            heyLumoToggle.checked = true;
-            chrome.runtime.sendMessage({ target: "background", type: "enable-wakeword" });
-        }
-    });
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => {
+            chrome.storage.local.remove("token", () => {
+                showLogin();
+                // deactivate if running
+                deactivate();
+            });
+        });
+    }
+
+    function initMain() {
+        chrome.runtime.sendMessage({ target: "background", type: "get-status" }, (response) => {
+            if (response && response.isCapturing) {
+                setActivated(true);
+                updateStatus("listening", "Videoyu dinliyor...");
+            }
+        });
+
+        // Hey Lumo toggle durumunu storage'dan yükle
+        chrome.storage.local.get("heyLumoEnabled", (data) => {
+            if (data.heyLumoEnabled) {
+                heyLumoToggle.checked = true;
+                chrome.runtime.sendMessage({ target: "background", type: "enable-wakeword" });
+            }
+        });
+    }
 
     // Background'dan gelen mesajları dinle
     chrome.runtime.onMessage.addListener((message) => {
@@ -58,7 +142,26 @@ document.addEventListener("DOMContentLoaded", () => {
                 break;
 
             case "audio-stream-ready":
-                playAudio(message.audio_base64, message.audio_format || "mp3");
+                // Audio is playing in background offscreen document
+                // Update UI to "Speaking" state
+                updateStatus("speaking", "Yanıt veriyor...");
+                activateBtn.classList.remove("thinking");
+                activateBtn.classList.add("speaking");
+                activateBtn.innerHTML = `
+                    <div class="speaking-wave"></div>
+                    Konuşuyor...
+                `;
+                break;
+
+            case "audio-ended":
+                // Audio playback finished in background
+                updateStatus("listening", "Videoyu dinliyor...");
+                resetButton();
+                break;
+
+            case "audio-error":
+                updateStatus("error", message.error || "Ses oynatılamadı");
+                resetButton();
                 break;
 
             case "wake-activated":
@@ -160,7 +263,32 @@ function deactivate() {
     });
 }
 
-function startRecording() {
+async function getMicPermission() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+        return true;
+    } catch (err) {
+        console.error("Mic permission denied:", err);
+        return false;
+    }
+}
+
+async function startRecording() {
+    updateStatus("thinking", "İzin kontrol ediliyor...");
+
+    const hasPermission = await getMicPermission();
+    if (!hasPermission) {
+        updateStatus("error", "İzin reddedildi. Ayarlardan açın.");
+        // Otomatik olarak ayarları açmayı teklif edebiliriz veya kullanıcıya mesaj gösterebiliriz
+        setTimeout(() => {
+            if (confirm("LumoAI mikrofon iznine ihtiyaç duyar. İzin ayarlarını açmak ister misiniz?")) {
+                chrome.runtime.openOptionsPage();
+            }
+        }, 500);
+        return;
+    }
+
     updateStatus("thinking", "Mikrofon açılıyor...");
     chrome.runtime.sendMessage({ target: "background", type: "start-mic" }, (response) => {
         if (chrome.runtime.lastError) {

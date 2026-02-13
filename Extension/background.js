@@ -2,23 +2,73 @@
 // Tab audio capture, oturum yönetimi, ve content script ile mikrofon kaydı
 
 const BACKEND_URL = "http://localhost:8000";
-let currentSessionId = null;
-let isCapturing = false;
+// State is now managed via chrome.storage.local
+// Keys: "lumo_sessionId", "lumo_isCapturing", "lumo_wakeWordEnabled"
+
 let offscreenReady = false;
-let wakeWordEnabled = false;
 let wakeWordTabId = null;
 
 // ========== Session Management ==========
 
+async function getAuthToken() {
+    const tokenData = await chrome.storage.local.get("token");
+    return tokenData?.token || null;
+}
+
+async function getTtsSettings() {
+    const data = await chrome.storage.local.get(["lumo_tts_voice", "lumo_tts_speed"]);
+    const voiceId = typeof data?.lumo_tts_voice === "string" && data.lumo_tts_voice.trim()
+        ? data.lumo_tts_voice.trim()
+        : "ali";
+    const speedRaw = Number(data?.lumo_tts_speed);
+    const speed = Number.isFinite(speedRaw) ? Math.min(1.2, Math.max(0.6, speedRaw)) : 0.9;
+    return { voiceId, speed };
+}
+
+async function getSessionId() {
+    const data = await chrome.storage.local.get("lumo_sessionId");
+    return data.lumo_sessionId || null;
+}
+
+async function setSessionId(id) {
+    if (id) {
+        await chrome.storage.local.set({ "lumo_sessionId": id });
+    } else {
+        await chrome.storage.local.remove("lumo_sessionId");
+    }
+}
+
+async function getIsCapturing() {
+    const data = await chrome.storage.local.get("lumo_isCapturing");
+    return !!data.lumo_isCapturing;
+}
+
+async function setIsCapturing(val) {
+    await chrome.storage.local.set({ "lumo_isCapturing": !!val });
+}
+
 async function createSession() {
     try {
+        const token = await getAuthToken();
+        if (!token) throw new Error("Not logged in");
+
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const videoUrl = tab?.url || "";
+
         const response = await fetch(`${BACKEND_URL}/api/voice/session/new`, {
             method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ video_url: videoUrl })
         });
+        if (!response.ok) throw new Error("Failed to create session");
         const data = await response.json();
-        currentSessionId = data.session_id;
-        console.log("[BG] Session created:", currentSessionId);
-        return currentSessionId;
+
+        await setSessionId(data.session_id);
+        console.log("[BG] Session created:", data.session_id);
+        return data.session_id;
     } catch (error) {
         console.error("[BG] Failed to create session:", error);
         return null;
@@ -26,13 +76,18 @@ async function createSession() {
 }
 
 async function endSession() {
+    const currentSessionId = await getSessionId();
     if (currentSessionId) {
         try {
-            await fetch(`${BACKEND_URL}/api/voice/session/${currentSessionId}`, {
-                method: "DELETE",
-            });
+            const token = await getAuthToken();
+            if (token) {
+                await fetch(`${BACKEND_URL}/api/voice/session/${currentSessionId}`, {
+                    method: "DELETE",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+            }
         } catch (e) { }
-        currentSessionId = null;
+        await setSessionId(null);
     }
 }
 
@@ -82,10 +137,12 @@ async function ensureOffscreenDocument() {
 // ========== Tab Audio Capture ==========
 
 async function startTabCapture() {
+    const isCapturing = await getIsCapturing();
     if (isCapturing) return;
 
     try {
-        await createSession();
+        const sessionId = await createSession();
+        const token = await getAuthToken();
         await ensureOffscreenDocument();
 
         const tab = (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
@@ -95,25 +152,32 @@ async function startTabCapture() {
             targetTabId: tab.id,
         });
 
+        if (!streamId) {
+            console.error("[BG] Failed to get MediaStreamId");
+            return;
+        }
+
         chrome.runtime.sendMessage({
             target: "offscreen",
             type: "start-capture",
             streamId,
-            sessionId: currentSessionId,
+            sessionId: sessionId,
             backendUrl: BACKEND_URL,
+            token,
         });
 
-        isCapturing = true;
+        await setIsCapturing(true);
         console.log("[BG] Tab capture started");
     } catch (error) {
         console.error("[BG] Tab capture failed:", error);
     }
 }
 
-function stopTabCapture() {
+async function stopTabCapture() {
+    const isCapturing = await getIsCapturing();
     if (!isCapturing) return;
     chrome.runtime.sendMessage({ target: "offscreen", type: "stop-capture" });
-    isCapturing = false;
+    await setIsCapturing(false);
 }
 
 // ========== Content Script ile Mikrofon ==========
@@ -452,103 +516,149 @@ async function resumeWakeWord() {
 // ========== Message Handler ==========
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.target && message.target !== "background") return;
+    // onMessage handler must return true for async sendResponse
+    const asyncHandle = async () => {
+        if (message.target && message.target !== "background") return;
 
-    switch (message.type) {
-        case "activate":
-            startTabCapture()
-                .then(() => sendResponse({ status: "capturing", sessionId: currentSessionId }))
-                .catch((err) => sendResponse({ error: err.message }));
-            return true;
+        const currentSessionId = await getSessionId();
+        const isCapturing = await getIsCapturing();
+        const wakeWordEnabledData = await chrome.storage.local.get("lumo_wakeWordEnabled");
+        const wakeWordEnabled = wakeWordEnabledData.lumo_wakeWordEnabled;
 
-        case "deactivate":
-            stopTabCapture();
-            endSession();
-            sendResponse({ status: "stopped" });
-            break;
+        switch (message.type) {
+            case "activate":
+                try {
+                    await startTabCapture();
+                    const sessionId = await getSessionId();
+                    sendResponse({ status: "capturing", sessionId });
+                } catch (err) {
+                    sendResponse({ error: err.message });
+                }
+                break;
 
-        case "get-status":
-            sendResponse({ isCapturing, sessionId: currentSessionId, wakeWordEnabled });
-            break;
+            case "deactivate":
+                await stopTabCapture();
+                await endSession();
+                sendResponse({ status: "stopped" });
+                break;
 
-        // Popup mikrofon başlatmak istiyor
-        case "start-mic":
-            startMicViaContentScript()
-                .then((result) => sendResponse(result))
-                .catch((err) => sendResponse({ error: err.message }));
-            return true;
+            case "get-status":
+                sendResponse({ isCapturing, sessionId: currentSessionId, wakeWordEnabled });
+                break;
 
-        // Popup mikrofon durdurmak istiyor
-        case "stop-mic":
-            stopMicViaContentScript();
-            sendResponse({ status: "stopping" });
-            break;
+            // Popup mikrofon başlatmak istiyor
+            case "start-mic":
+                // Use Offscreen instead of content script
+                await ensureOffscreenDocument();
+                const token = await getAuthToken();
+                chrome.runtime.sendMessage({
+                    target: "offscreen",
+                    type: "start-mic",
+                    sessionId: currentSessionId,
+                    backendUrl: BACKEND_URL,
+                    token,
+                });
+                // Response will be handled via "mic-started" message
+                sendResponse({ status: "starting_offscreen" });
+                break;
 
-        // Content script'ten mikrofon başladı sinyali
-        case "mic-started":
-            try { chrome.runtime.sendMessage({ target: "popup", type: "mic-recording-started" }); } catch (e) { }
-            break;
+            // Popup mikrofon durdurmak istiyor
+            case "stop-mic":
+                chrome.runtime.sendMessage({ target: "offscreen", type: "stop-mic" });
+                sendResponse({ status: "stopping" });
+                break;
 
-        // Content script'ten mikrofon verisi geldi
-        case "mic-audio-data":
-            handleUserQuestion(message.audioBase64, currentSessionId)
-                .catch((err) => {
+            // Content script'ten mikrofon başladı sinyali
+            case "mic-started":
+                try { chrome.runtime.sendMessage({ target: "popup", type: "mic-recording-started" }); } catch (e) { }
+                break;
+
+            // Content script'ten mikrofon verisi geldi
+            case "mic-audio-data":
+                try {
+                    // Re-fetch session ID to be sure
+                    const sessId = await getSessionId();
+                    await handleUserQuestion(message.audioBase64, sessId);
+                } catch (err) {
                     try { chrome.runtime.sendMessage({ target: "popup", type: "question-result", error: err.message }); } catch (e) { }
-                });
-            break;
+                }
+                break;
 
-        // Content script'ten mikrofon hatası
-        case "mic-error":
-            try { chrome.runtime.sendMessage({ target: "popup", type: "mic-recording-error", error: message.error }); } catch (e) { }
-            break;
+            // Content script'ten mikrofon hatası
+            case "mic-error":
+                try { chrome.runtime.sendMessage({ target: "popup", type: "mic-recording-error", error: message.error }); } catch (e) { }
+                break;
 
-        case "offscreen-ready":
-            offscreenReady = true;
-            break;
+            case "offscreen-ready":
+                offscreenReady = true;
+                break;
 
-        // ========== Wake Word ==========
-        case "enable-wakeword":
-            startWakeWordDetection()
-                .then((result) => sendResponse(result))
-                .catch((err) => sendResponse({ error: err.message }));
-            return true;
+            // ========== Wake Word ==========
+            case "enable-wakeword":
+                try {
+                    const result = await startWakeWordDetection();
+                    await chrome.storage.local.set({ "lumo_wakeWordEnabled": true });
+                    sendResponse(result);
+                } catch (err) {
+                    sendResponse({ error: err.message });
+                }
+                break;
 
-        case "disable-wakeword":
-            stopWakeWordDetection();
-            sendResponse({ status: "disabled" });
-            break;
+            case "disable-wakeword":
+                await stopWakeWordDetection();
+                await chrome.storage.local.set({ "lumo_wakeWordEnabled": false });
+                sendResponse({ status: "disabled" });
+                break;
 
-        case "wake-word-detected":
-            console.log("[BG] Wake word detected! Pausing recognition, starting mic...");
-            // Wake word'ü geçici duraklat (mikrofon çakışması önlenir)
-            pauseWakeWordTemporarily();
-            // Lumo henüz aktif değilse önce aktive et
-            if (!isCapturing) {
-                startTabCapture().then(() => {
-                    startMicViaContentScript();
+            case "wake-word-detected":
+                console.log("[BG] Wake word detected! Pausing recognition, starting mic...");
+                // Wake word'ü geçici duraklat (mikrofon çakışması önlenir)
+                await pauseWakeWordTemporarily();
+                // Lumo henüz aktif değilse önce aktive et
+                if (!isCapturing) {
+                    await startTabCapture();
+                    await startMicViaContentScript();
                     try { chrome.runtime.sendMessage({ target: "popup", type: "wake-activated" }); } catch (e) { }
-                });
-            } else {
-                startMicViaContentScript();
-            }
-            // NOT: mic-recording-started content script'ten gelecek, burada göndermiyoruz
-            break;
+                } else {
+                    await startMicViaContentScript();
+                }
+                // NOT: mic-recording-started content script'ten gelecek, burada göndermiyoruz
+                break;
 
-        case "wake-auto-stop":
-            console.log("[BG] Wake auto-stop — sending question");
-            stopMicViaContentScript();
-            // Kayıt bittikten sonra wake word'ü tekrar başlat
-            setTimeout(() => {
-                if (wakeWordEnabled) resumeWakeWord();
-            }, 2000);
-            break;
-    }
+            case "wake-auto-stop":
+                console.log("[BG] Wake auto-stop — sending question");
+                await stopMicViaContentScript();
+                // Kayıt bittikten sonra wake word'ü tekrar başlat
+                setTimeout(async () => {
+                    const enabledData = await chrome.storage.local.get("lumo_wakeWordEnabled");
+                    if (enabledData.lumo_wakeWordEnabled) await resumeWakeWord();
+                }, 2000);
+                break;
+
+            case "audio-playback-ended":
+                try { chrome.runtime.sendMessage({ target: "popup", type: "audio-ended" }); } catch (e) { }
+                break;
+
+            case "audio-playback-error":
+                try {
+                    chrome.runtime.sendMessage({
+                        target: "popup",
+                        type: "audio-error",
+                        error: message.error
+                    });
+                } catch (e) { }
+                break;
+        }
+    };
+
+    asyncHandle();
+    return true; // Keep message channel open for async response
 });
 
-// ========== Kullanıcı Soru İşleme ==========
+// ========== Kullanıcı Soru İşleme (DÜZELTİLDİ) ==========
 
 async function handleUserQuestion(audioBase64, sessionId) {
-    if (!sessionId) return { error: "Önce Lumo'yu aktive edin" };
+    if (!sessionId) return { error: "Once Lumo'yu aktive edin" };
 
     try {
         const binaryString = atob(audioBase64);
@@ -561,58 +671,100 @@ async function handleUserQuestion(audioBase64, sessionId) {
         formData.append("audio", new Blob([bytes], { type: "audio/webm" }), "question.webm");
         formData.append("session_id", sessionId);
 
-        // 1. Adım: STT + LLM (metin yanıt al)
-        const response = await fetch(`${BACKEND_URL}/api/voice/ask`, {
+        const tokenData = await chrome.storage.local.get("token");
+        const token = tokenData.token;
+
+        const response = await fetch(`${BACKEND_URL}/api/voice/ask-stream`, {
             method: "POST",
+            headers: { "Authorization": `Bearer ${token}` },
             body: formData,
         });
 
         if (!response.ok) throw new Error(`Backend error: ${response.status}`);
-        const result = await response.json();
 
-        if (result.error) return result;
+        await ensureOffscreenDocument();
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("Stream reader unavailable");
 
-        // Metin yanıtı hemen gönder (popup anında gösterir)
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let userTranscript = "";
+        let fullAiResponse = "";
+        let audioStarted = false;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+
+                let evt = null;
+                try {
+                    evt = JSON.parse(trimmed);
+                } catch (e) {
+                    continue;
+                }
+
+                if (evt.type === "user_transcript") {
+                    userTranscript = evt.text || "";
+                } else if (evt.type === "text_delta") {
+                    fullAiResponse += evt.delta || "";
+                    try {
+                        chrome.runtime.sendMessage({
+                            target: "popup",
+                            type: "question-result",
+                            ai_response: fullAiResponse,
+                            user_transcript: userTranscript,
+                        });
+                    } catch (e) { }
+                } else if (evt.type === "audio_chunk" && evt.audio_base64) {
+                    if (!audioStarted) {
+                        audioStarted = true;
+                        try {
+                            chrome.runtime.sendMessage({
+                                target: "popup",
+                                type: "audio-stream-ready",
+                                audio_format: evt.format || "wav",
+                                playing_in_background: true
+                            });
+                        } catch (e) { }
+                    }
+
+                    const fmt = (evt.format || "wav").toLowerCase();
+                    const mime = fmt === "mp3" ? "audio/mpeg" : `audio/${fmt}`;
+                    const dataUrl = `data:${mime};base64,${evt.audio_base64}`;
+                    chrome.runtime.sendMessage({
+                        target: "offscreen",
+                        type: "play-audio-data",
+                        audioData: dataUrl,
+                        appendQueue: true,
+                    });
+                } else if (evt.type === "done") {
+                    if (evt.ai_response) fullAiResponse = evt.ai_response;
+                }
+            }
+        }
+
         try {
             chrome.runtime.sendMessage({
                 target: "popup",
                 type: "question-result",
-                ai_response: result.ai_response,
-                user_transcript: result.user_transcript,
+                ai_response: fullAiResponse,
+                user_transcript: userTranscript,
             });
         } catch (e) { }
 
-        // 2. Adım: Streaming TTS (ses al)
-        const ttsResponse = await fetch(`${BACKEND_URL}/api/voice/speak-stream`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: result.ai_response, response_format: "mp3" }),
-        });
+        return { ai_response: fullAiResponse, user_transcript: userTranscript, audio_streamed: audioStarted };
 
-        if (!ttsResponse.ok) {
-            console.warn("[BG] Streaming TTS failed, skipping audio");
-            return result;
-        }
-
-        // MP3 stream'i oku ve base64'e çevir
-        const audioBuffer = await ttsResponse.arrayBuffer();
-        const audioBase64Result = btoa(
-            new Uint8Array(audioBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-        );
-
-        // Ses verisini popup'a gönder
-        try {
-            chrome.runtime.sendMessage({
-                target: "popup",
-                type: "audio-stream-ready",
-                audio_base64: audioBase64Result,
-                audio_format: "mp3",
-            });
-        } catch (e) { }
-
-        return { ...result, audio_streamed: true };
     } catch (error) {
         console.error("[BG] Question failed:", error);
         return { error: error.message };
     }
 }
+

@@ -1,14 +1,96 @@
 import { ArrowRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import Card from '../components/ui/Card';
 import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
+import QuizInterface from '../components/QuizInterface';
+import { getHistory, getNotes, setupQuiz, createSession, type Session } from '../api/endpoints';
 
 const Study = () => {
+    const [sessions, setSessions] = useState<Session[]>([]);
+    const [notes, setNotes] = useState<any[]>([]);
+    const [selectedSession, setSelectedSession] = useState("");
+    const [selectedNote, setSelectedNote] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [activeQuizSessionId, setActiveQuizSessionId] = useState<number | null>(null);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [sessionsData, notesData] = await Promise.all([
+                    getHistory(),
+                    getNotes()
+                ]);
+                setSessions(sessionsData);
+                setNotes(notesData);
+            } catch (error) {
+                console.error("Failed to fetch data:", error);
+            }
+        };
+        fetchData();
+    }, []);
+
+    const sessionOptions = sessions.map(s => ({
+        value: s.id,
+        label: s.title || `Session ${new Date(s.created_at).toLocaleDateString()}`
+    }));
+
+    const noteOptions = notes.map(n => ({
+        value: n.id,
+        label: n.title
+    }));
+
+    const handleStartQuiz = async () => {
+        if (!selectedSession && !selectedNote) {
+            alert("Please select a session or a note to start the quiz.");
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            // 1. Setup Quiz Context in Backend (stores it in memory for next session)
+            if (selectedSession) {
+                await setupQuiz('session', Number(selectedSession));
+            } else {
+                await setupQuiz('note', Number(selectedNote));
+            }
+
+            // 2. Create the Voice Session immediately
+            // Since context is set, this session will inherit the "Quiz System Prompt"
+            const newSession = await createSession({ video_url: "" });
+
+            // 3. Activate Interface
+            setActiveQuizSessionId(newSession.session_id);
+
+        } catch (error) {
+            console.error("Quiz setup failed:", error);
+            alert("Failed to setup quiz. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (activeQuizSessionId) {
+        return (
+            <div style={{
+                height: '100%',
+                backgroundColor: '#FEF3C7',
+                margin: '-2rem',
+                padding: '2rem',
+            }}>
+                <QuizInterface
+                    sessionId={activeQuizSessionId}
+                    onExit={() => setActiveQuizSessionId(null)}
+                />
+            </div>
+        );
+    }
+
     return (
         <div style={{
             height: '100%',
-            backgroundColor: '#FEF3C7', // Yellow background from design
-            margin: '-2rem', // Negative margin to fill the layout padding
+            backgroundColor: '#FEF3C7',
+            margin: '-2rem',
             padding: '2rem',
             display: 'flex',
             flexDirection: 'column'
@@ -53,44 +135,49 @@ const Study = () => {
                         }}>
                             LUMO
                         </div>
-                        <div style={{
-                            position: 'absolute',
-                            bottom: '10px',
-                            right: '10px',
-                            width: '12px',
-                            height: '12px',
-                            backgroundColor: '#10B981',
-                            borderRadius: '50%',
-                            border: '2px solid white'
-                        }} />
                     </div>
 
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>Your AI mentor is ready.</p>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
+                        Select content to quiz yourself on.
+                    </p>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2.5rem', textAlign: 'left' }}>
                         <Select
-                            label="Content Selection"
+                            label="Quiz on Past Session (Video)"
                             options={[
-                                { value: '', label: 'Choose content part...' },
-                                { value: 'basics', label: 'Python Basics' },
-                                { value: 'loops', label: 'Loops & Conditions' },
+                                { value: '', label: 'Select a session...' },
+                                ...sessionOptions
                             ]}
-                            defaultValue=""
+                            value={selectedSession}
+                            onChange={(e) => {
+                                setSelectedSession(e.target.value);
+                                if (e.target.value) setSelectedNote(""); // Mutually exclusive
+                            }}
                         />
 
+                        <div style={{ textAlign: 'center', color: '#666', fontSize: '0.9rem' }}>- OR -</div>
+
                         <Select
-                            label="Source Material"
+                            label="Quiz on Note"
                             options={[
-                                { value: '', label: 'Choose notes...' },
-                                { value: 'all', label: 'All Smart Notes' },
-                                { value: 'python', label: 'Python Notes' },
+                                { value: '', label: 'Select a note...' },
+                                ...noteOptions
                             ]}
-                            defaultValue=""
+                            value={selectedNote}
+                            onChange={(e) => {
+                                setSelectedNote(e.target.value);
+                                if (e.target.value) setSelectedSession(""); // Mutually exclusive
+                            }}
                         />
                     </div>
 
-                    <Button fullWidth style={{ fontWeight: 'bold', borderRadius: '999px', padding: '1rem', fontSize: '1rem' }}>
-                        START QUIZ <ArrowRight size={20} style={{ marginLeft: '0.5rem' }} />
+                    <Button
+                        fullWidth
+                        onClick={handleStartQuiz}
+                        disabled={isLoading}
+                        style={{ fontWeight: 'bold', borderRadius: '999px', padding: '1rem', fontSize: '1rem' }}
+                    >
+                        {isLoading ? "Setting up..." : "START QUIZ"} <ArrowRight size={20} style={{ marginLeft: '0.5rem' }} />
                     </Button>
 
                 </Card>

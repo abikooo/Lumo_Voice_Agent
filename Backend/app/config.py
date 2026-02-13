@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from urllib.parse import urlparse
 
 
 class Settings(BaseSettings):
@@ -16,31 +17,45 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
 
     # API Keys
-    OPENAI_API_KEY: str = ""
-    GOOGLE_API_KEY: str = ""
-    FAL_KEY: str = ""
+    # API Keys
+    # Unused keys removed
+    FAL_KEY: str
 
     # FAL.ai Endpoints
     STT_ENDPOINT: str = "freya-mypsdi253hbk/freya-stt"
-    TTS_ENDPOINT: str = "freya-mypsdi253hbk/freya-tts"
     TTS_STREAM_ENDPOINT: str = "freya-mypsdi253hbk/freya-tts/stream"
     LLM_ENDPOINT: str = "openrouter/router"
 
-    @property
-    def fal_stt_url(self) -> str:
-        return f"https://fal.run/{self.STT_ENDPOINT}"
+    def _resolve_fal_url(self, endpoint: str) -> str:
+        endpoint = (endpoint or "").strip()
+        if not endpoint:
+            return "https://fal.run"
+
+        if endpoint.startswith("http://") or endpoint.startswith("https://"):
+            parsed = urlparse(endpoint)
+            host = (parsed.netloc or "").lower()
+            path = (parsed.path or "").strip()
+
+            # Accept dashboard-style URLs and convert to API URL.
+            if host == "fal.ai" and path.startswith("/models/"):
+                model_path = path[len("/models/"):].lstrip("/")
+                return f"https://fal.run/{model_path}".rstrip("/")
+
+            return endpoint.rstrip("/")
+
+        return f"https://fal.run/{endpoint.lstrip('/')}".rstrip("/")
 
     @property
-    def fal_tts_url(self) -> str:
-        return f"https://fal.run/{self.TTS_ENDPOINT}"
+    def fal_stt_url(self) -> str:
+        return self._resolve_fal_url(self.STT_ENDPOINT)
 
     @property
     def fal_tts_stream_url(self) -> str:
-        return f"https://fal.run/{self.TTS_STREAM_ENDPOINT}"
+        return self._resolve_fal_url(self.TTS_STREAM_ENDPOINT)
 
     @property
     def fal_llm_url(self) -> str:
-        return f"https://fal.run/{self.LLM_ENDPOINT}"
+        return self._resolve_fal_url(self.LLM_ENDPOINT)
 
     @property
     def fal_headers(self) -> dict:
@@ -49,6 +64,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 @lru_cache()

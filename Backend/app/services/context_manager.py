@@ -10,12 +10,21 @@ class SessionContext:
     conversation_history: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)
+    system_prompt: str = ""
 
     def add_transcript(self, text: str):
         """Video transkript parçası ekler."""
         if text.strip():
             self.transcript_chunks.append(text.strip())
             self.last_activity = time.time()
+
+    def set_system_prompt(self, prompt: str):
+        """Oturum için özel system prompt ayarlar."""
+        self.system_prompt = prompt
+        self.last_activity = time.time()
+
+    def get_system_prompt(self) -> str:
+        return self.system_prompt
 
     def get_context(self, max_chars: int = 3000) -> str:
         """
@@ -39,6 +48,7 @@ class SessionContext:
         """Oturumu sıfırlar."""
         self.transcript_chunks.clear()
         self.conversation_history.clear()
+        self.system_prompt = ""
 
 
 class ContextManager:

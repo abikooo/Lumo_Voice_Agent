@@ -1,14 +1,20 @@
 import { useState } from 'react';
-import { User, Star, Volume2 } from 'lucide-react';
+import { User as UserIcon, Star, Volume2, LogOut } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import Toggle from '../components/ui/Toggle';
+import { useAuth } from '../context/AuthContext';
 
 const Profile = () => {
+    const { user, logout } = useAuth();
     const [reminders, setReminders] = useState(true);
     const [updates, setUpdates] = useState(false);
+
+    if (!user) {
+        return <div>Loading...</div>;
+    }
 
     return (
         <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
@@ -22,10 +28,11 @@ const Profile = () => {
                     <div style={{
                         width: '80px', height: '80px', borderRadius: '50%',
                         backgroundColor: '#FECACA', marginBottom: '0.5rem',
-                        backgroundImage: 'url(https://api.dicebear.com/7.x/avataaars/svg?seed=Alex)',
+                        backgroundImage: `url(https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email})`,
                         backgroundSize: 'cover'
                     }} />
-                    <p style={{ fontWeight: '600' }}>Alex Johnson</p>
+                    <p style={{ fontWeight: '600' }}>{user.full_name}</p>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{user.email}</p>
                 </div>
             </div>
 
@@ -41,17 +48,16 @@ const Profile = () => {
                         </span>
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>General Settings</h2>
                     </div>
-                    <span style={{ color: 'var(--primary)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '600' }}>Edit Profile</span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Username</label>
-                        <Input defaultValue="alex_j_lumo" icon={User} />
+                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Full Name</label>
+                        <Input defaultValue={user.full_name} icon={UserIcon} />
                     </div>
                     <div>
                         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Email Address</label>
-                        <Input defaultValue="alex.johnson@example.com" type="email" />
+                        <Input defaultValue={user.email} type="email" disabled />
                     </div>
                 </div>
 
@@ -76,12 +82,12 @@ const Profile = () => {
                             </div>
                             <div style={{ flex: 1 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <span style={{ fontWeight: 'bold', color: '#1F2937' }}>Lumo Premium</span>
+                                    <span style={{ fontWeight: 'bold', color: '#1F2937' }}>Lumo Free</span>
                                     <span style={{ backgroundColor: '#D1FAE5', color: '#065F46', fontSize: '0.75rem', padding: '0.125rem 0.5rem', borderRadius: '999px', fontWeight: '600' }}>Active</span>
                                 </div>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Next billing on Nov 24, 2024</p>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Upgrade to Premium for more features</p>
                             </div>
-                            <a href="#" style={{ fontSize: '0.875rem', textDecoration: 'underline', color: 'var(--text-secondary)' }}>Manage</a>
+                            <Button size="sm" variant="outline">Upgrade</Button>
                         </div>
                     </div>
 
@@ -117,9 +123,20 @@ const Profile = () => {
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                    <Button variant="outline" style={{ padding: '0.75rem 2rem' }}>Cancel</Button>
-                    <Button style={{ padding: '0.75rem 2rem', fontWeight: 'bold' }}>Save Changes</Button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid var(--border)' }}>
+                    <Button
+                        variant="outline"
+                        style={{ color: '#EF4444', borderColor: '#FECACA' }}
+                        onClick={logout}
+                    >
+                        <LogOut size={16} style={{ marginRight: '8px' }} />
+                        Log Out
+                    </Button>
+
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        <Button variant="outline" style={{ padding: '0.75rem 2rem' }}>Cancel</Button>
+                        <Button style={{ padding: '0.75rem 2rem', fontWeight: 'bold' }}>Save Changes</Button>
+                    </div>
                 </div>
 
             </Card>

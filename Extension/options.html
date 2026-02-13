@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>LumoAI Settings</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .card {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background: #357abd;
+        }
+
+        .status {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>LumoAI Ayarları</h1>
+
+    <div class="card">
+        <h2>Mikrofon İzni</h2>
+        <p>LumoAI'nin sesli soru sorabilmesi için mikrofon iznine ihtiyacı vardır. Eğer izin reddedildiyse, lütfen
+            aşağıdaki butona tıklayarak tekrar izin verin.</p>
+        <button id="requestMicBtn">Mikrofon İzni İste</button>
+        <div id="micStatus" class="status"></div>
+    </div>
+
+    <div class="card">
+        <h2>Sorun Giderme</h2>
+        <p>Eğer "İzin Reddedildi" hatası almaya devam ediyorsanız:</p>
+        <ol>
+            <li>Tarayıcınızın adres çubuğuna <code>chrome://settings/content/microphone</code> yazın.</li>
+            <li>LumoAI uzantısının engellenenler listesinde olup olmadığını kontrol edin.</li>
+            <li>Engellenmişse kaldırın ve tekrar deneyin.</li>
+        </ol>
+    </div>
+
+    <script src="options.js"></script>
+</body>
+
+</html>

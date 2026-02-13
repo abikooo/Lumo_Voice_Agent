@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Audio Format Debugger</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Audio Format Debugger</h2>
+    <p>Click the button to fetch audio and analyze its internal headers.</p>
+    <button id="btn" style="padding: 10px 20px;">Fetch & Analyze</button>
+    <pre id="output" style="margin-top: 20px; background: #eee; padding: 10px;"></pre>
+
+    <script>
+        const log = (msg) => document.getElementById('output').textContent += msg + '\n';
+
+        document.getElementById('btn').addEventListener('click', async () => {
+            log("--- Starting Request ---");
+            try {
+                const res = await fetch('http://localhost:8000/api/voice/speak-stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: "Hello", response_format: "mp3" })
+                });
+
+                if (!res.ok) throw new Error("API Error: " + res.status);
+
+                const blob = await res.blob();
+                log(`Received Blob: ${blob.size} bytes`);
+                log(`MIME Type reported: ${blob.type}`);
+
+                const buf = await blob.arrayBuffer();
+                const bytes = new Uint8Array(buf);
+
+                // Show first 16 bytes in Hex
+                let hex = "";
+                for (let i = 0; i < Math.min(16, bytes.length); i++) {
+                    hex += bytes[i].toString(16).padStart(2, '0').toUpperCase() + " ";
+                }
+                log(`Header Hex: ${hex}`);
+
+                // Analyze
+                const magic = String.fromCharCode(...bytes.slice(0, 4));
+                log(`Header ASCII: ${magic}`);
+
+                if (magic.includes("RIFF")) {
+                    log("CONCLUSION: It is a WAV file!");
+                    if (blob.type !== 'audio/wav') log("MISMATCH: Blob type is " + blob.type + " but header is WAV.");
+                } else if (hex.startsWith("FF FB") || hex.startsWith("49 44 33")) { // ID3
+                    log("CONCLUSION: It looks like MP3.");
+                } else {
+                    log("CONCLUSION: Unknown format.");
+                }
+
+                // Try to play
+                const url = URL.createObjectURL(blob);
+                const audio = new Audio(url);
+                audio.play()
+                    .then(() => log("Playback started successfully!"))
+                    .catch(e => log("Playback failed: " + e.message));
+
+            } catch (e) {
+                log("ERROR: " + e.message);
+            }
+        });
+    </script>
+</body>
+
+</html>

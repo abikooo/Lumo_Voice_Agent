@@ -1,18 +1,59 @@
 import { ArrowRight, Bot, ExternalLink, PlayCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import ProgressBar from '../components/ui/ProgressBar';
+import { getNotes, type Note, getHistory, type Session } from '../api/endpoints';
+import { useAuth } from '../context/AuthContext';
 
 const Dashboard = () => {
-    const smartNotes = [
-        { title: 'HTML', desc: 'The semantic meaning of HTML tags is crucial for accessibility...', time: '10 mins ago', color: '#F6E05E' },
-        { title: 'CSS FLEXBOX', desc: 'Justify-content controls alignment along the main axis,...', time: 'Yesterday', color: '#4299E1' },
-        { title: 'JS ARRAYS', desc: 'Map returns a new array, while...', time: '2 days ago', color: '#ECC94B' },
-    ];
+    const { user } = useAuth();
+    const navigate = useNavigate();
+    const [smartNotes, setSmartNotes] = useState<{ title: string; desc: string; time: string; color: string }[]>([]);
+    const [recentSession, setRecentSession] = useState<Session | null>(null);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                // Fetch Notes
+                const notes = await getNotes();
+                const formattedNotes = notes.slice(0, 3).map(n => ({
+                    title: n.title,
+                    desc: n.content.length > 60 ? n.content.substring(0, 60) + '...' : n.content,
+                    time: n.created_at ? new Date(n.created_at).toLocaleDateString() : 'Just now',
+                    color: n.color
+                }));
+                setSmartNotes(formattedNotes);
+
+                // Fetch History for Recent Session
+                const sessions = await getHistory();
+                if (sessions.length > 0) {
+                    setRecentSession(sessions[0]);
+                }
+            } catch (error) {
+                console.error("Failed to fetch dashboard data:", error);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    const handleResume = () => {
+        if (recentSession?.video_url) {
+            window.open(recentSession.video_url, '_blank');
+        } else if (recentSession) {
+            navigate('/study', { state: { sessionId: recentSession.id } });
+        } else {
+            navigate('/study');
+        }
+    };
 
     return (
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            <h1 style={{ fontSize: '2rem', marginBottom: '2rem' }}>Jump back in</h1>
+            <h1 style={{ fontSize: '2rem', marginBottom: '2rem' }}>
+                Welcome, {user?.full_name || user?.email || 'Student'}
+            </h1>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: '2rem', alignItems: 'start' }}>
 
@@ -37,8 +78,14 @@ const Dashboard = () => {
                             </div>
                         </div>
 
-                        <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>HTML CSS JS basics</h2>
-                        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>Last visited 2 hours ago</p>
+                        <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
+                            {recentSession ? recentSession.title : "No recent activity"}
+                        </h2>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
+                            {recentSession
+                                ? `Last visited ${new Date(recentSession.created_at).toLocaleDateString()} ${new Date(recentSession.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                : "Start a new session to see it here."}
+                        </p>
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                             <span style={{ fontWeight: '600' }}>Progress</span>
@@ -48,7 +95,11 @@ const Dashboard = () => {
                         <ProgressBar progress={35} />
 
                         <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
-                            <Button variant="ghost" style={{ color: 'var(--primary)', padding: 0 }}>
+                            <Button
+                                variant="ghost"
+                                style={{ color: 'var(--primary)', padding: 0 }}
+                                onClick={handleResume}
+                            >
                                 Resume Lesson <ArrowRight size={16} />
                             </Button>
                         </div>
@@ -91,8 +142,11 @@ const Dashboard = () => {
                         color: 'white',
                         textAlign: 'center',
                         padding: '2.5rem 1.5rem',
-                        border: 'none'
-                    }}>
+                        border: 'none',
+                        cursor: 'pointer'
+                    }}
+                        onClick={() => navigate('/study')}
+                    >
                         <div style={{
                             width: '64px',
                             height: '64px',
@@ -119,22 +173,35 @@ const Dashboard = () => {
                     <Card style={{ padding: '1.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <h3 style={{ fontSize: '1rem', margin: 0 }}>Smart Notes Preview</h3>
-                            <ExternalLink size={16} color="var(--primary)" style={{ cursor: 'pointer' }} />
+                            <ExternalLink
+                                size={16}
+                                color="var(--primary)"
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => navigate('/smart-notes')}
+                            />
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            {smartNotes.map((note, index) => (
-                                <div key={index} style={{ backgroundColor: 'var(--bg-body)', padding: '1rem', borderRadius: 'var(--radius-sm)' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: note.color }} />
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{note.title}</span>
+                            {smartNotes.length === 0 ? (
+                                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>No notes yet. Start a lesson to generate notes!</p>
+                            ) : (
+                                smartNotes.map((note, index) => (
+                                    <div
+                                        key={index}
+                                        style={{ backgroundColor: 'var(--bg-body)', padding: '1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                                        onClick={() => navigate('/smart-notes')}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: note.color }} />
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{note.title}</span>
+                                        </div>
+                                        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', lineHeight: '1.4' }}>
+                                            {note.desc}
+                                        </p>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{note.time}</p>
                                     </div>
-                                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', lineHeight: '1.4' }}>
-                                        {note.desc}
-                                    </p>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{note.time}</p>
-                                </div>
-                            ))}
+                                ))
+                            )}
                         </div>
                     </Card>
 
