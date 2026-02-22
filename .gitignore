@@ -1,0 +1,60 @@
+# ========================
+# lumoai — root .gitignore
+# ========================
+
+# python / backend
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+*.db
+*.sqlite3
+
+# environment variables — never commit secrets
+.env
+.env.*
+!.env.example
+
+# node / frontend
+node_modules/
+.pnp
+.pnp.js
+dist/
+build/
+
+# ide / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# os-generated files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# logs and temp files
+*.log
+logs/
+*.tmp
+*.bak
+*.orig
+
+# test artifacts
+*.wav
+*.mp3
+test_output*
+
+# runtime uploads folder
+Backend/uploads/
